@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>扩展本地测试页</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7fb;
+        --panel: #ffffff;
+        --text: #20242c;
+        --muted: #687386;
+        --line: #d9dee8;
+        --primary: #1b6ef3;
+        --success: #067647;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(720px, calc(100% - 32px));
+        margin: 40px auto;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      p {
+        margin: 0 0 24px;
+        color: var(--muted);
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-weight: 650;
+      }
+
+      input,
+      select {
+        height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 10px;
+        font: inherit;
+      }
+
+      button {
+        width: 140px;
+        height: 40px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--primary);
+        color: #ffffff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+      }
+
+      #result {
+        min-height: 24px;
+        color: var(--success);
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>扩展本地测试页</h1>
+      <p>这个页面用于验证内部网页调试填充器。</p>
+
+      <form id="debugForm">
+        <label>
+          用户名
+          <input data-crx-fill="username" autocomplete="off">
+        </label>
+
+        <label>
+          密码
+          <input data-auto-fill="password" type="password" autocomplete="off">
+        </label>
+
+        <label>
+          手机号
+          <input name="phone" autocomplete="off">
+        </label>
+
+        <label>
+          角色
+          <select name="role">
+            <option value="">请选择</option>
+            <option value="admin">管理员</option>
+            <option value="tester">测试人员</option>
+          </select>
+        </label>
+
+        <button type="submit">提交</button>
+        <div id="result"></div>
+      </form>
+    </main>
+
+    <script>
+      document.querySelector("#debugForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.querySelector("#result").textContent = "表单已提交";
+      });
+    </script>
+  </body>
+</html>

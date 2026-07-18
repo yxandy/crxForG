@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "内部网页调试填充器",
+  "version": "0.1.0",
+  "description": "打开指定网址并按约定选择器自动填充表单，仅供内部测试调试。",
+  "minimum_chrome_version": "102",
+  "permissions": [
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "网页调试填充器"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

@@ -481,17 +481,36 @@ function waitForEmailRegisterButton(timeoutMs) {
 
 function isEmailRegisterButton(element) {
   const text = normalizeText(element.textContent);
-  const hasEmailRegisterText = text === "使用邮箱注册" || text.includes("邮箱注册");
+  const lowerText = normalizeEnglishText(element.textContent);
+  const hasChineseEmailRegisterText =
+    text === "使用邮箱注册" ||
+    text.includes("邮箱注册") ||
+    text.includes("邮件注册");
+  const hasEnglishEmailRegisterText =
+    lowerText.includes("signupwithemail") ||
+    lowerText.includes("signupbyemail") ||
+    lowerText.includes("emailsignup") ||
+    lowerText.includes("registerwithemail") ||
+    lowerText.includes("registerbyemail") ||
+    lowerText.includes("emailregister");
   const hasMailIcon = Boolean(
     element.querySelector("svg.lucide-mail, svg[class*='lucide-mail']")
   );
 
   // 使用稳定的语义线索匹配按钮，避免依赖 Tailwind 生成的长 class。
-  return hasEmailRegisterText || (hasMailIcon && text.includes("邮箱"));
+  return (
+    hasChineseEmailRegisterText ||
+    hasEnglishEmailRegisterText ||
+    (hasMailIcon && (text.includes("邮箱") || lowerText.includes("email")))
+  );
 }
 
 function normalizeText(value) {
   return String(value || "").replace(/\s+/g, "").trim();
+}
+
+function normalizeEnglishText(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 function normalizeConfig(config) {

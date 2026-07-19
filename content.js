@@ -46,9 +46,58 @@
       return true;
     }
 
+    if (message?.type === "FILL_USER_PROFILE") {
+      fillUserProfileFields(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      return true;
+    }
+
     return false;
   });
 })();
+
+async function fillUserProfileFields(rawConfig = {}) {
+  const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
+  const givenName = String(rawConfig.givenName || "").trim();
+  const familyName = String(rawConfig.familyName || "").trim();
+  const password = String(rawConfig.password || "");
+
+  if (!givenName) {
+    throw new Error("缺少要填入的名字。");
+  }
+
+  if (!familyName) {
+    throw new Error("缺少要填入的姓氏。");
+  }
+
+  if (!password) {
+    throw new Error("缺少要填入的密码。");
+  }
+
+  const givenNameInput = await waitForProfileInput("givenName", waitMs);
+  const familyNameInput = await waitForProfileInput("familyName", waitMs);
+  const passwordInput = await waitForProfileInput("password", waitMs);
+
+  setNativeValue(givenNameInput, givenName);
+  dispatchInputEvents(givenNameInput);
+  setNativeValue(familyNameInput, familyName);
+  dispatchInputEvents(familyNameInput);
+  setNativeValue(passwordInput, password);
+  dispatchInputEvents(passwordInput);
+
+  return {
+    filled: true,
+    givenName,
+    familyName,
+    fields: {
+      givenName: describeProfileInput(givenNameInput),
+      familyName: describeProfileInput(familyNameInput),
+      password: describeProfileInput(passwordInput)
+    }
+  };
+}
 
 async function fillEmailCodeField(rawConfig = {}) {
   const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
@@ -109,6 +158,124 @@ async function clickEmailRegisterButton(rawConfig = {}) {
     clicked: true,
     matchedText: normalizeText(button.textContent)
   };
+}
+
+function waitForProfileInput(fieldName, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const findInput = () => {
+      const selectorGroups = {
+        givenName: [
+          "input[data-testid='givenName']",
+          "input[autocomplete='given-name']",
+          "input[name='givenName']"
+        ],
+        familyName: [
+          "input[data-testid='familyName']",
+          "input[autocomplete='family-name']",
+          "input[name='familyName']"
+        ],
+        password: [
+          "input[data-testid='password']",
+          "input[type='password'][name='password']",
+          "input[name='password']",
+          "input[type='password']"
+        ]
+      };
+
+      for (const selector of selectorGroups[fieldName]) {
+        const element = document.querySelector(selector);
+
+        if (element) {
+          return element;
+        }
+      }
+
+      return Array.from(document.querySelectorAll("input")).find((element) =>
+        isProfileInputByLabel(element, fieldName)
+      );
+    };
+
+    const firstMatch = findInput();
+
+    if (firstMatch) {
+      resolve(firstMatch);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const input = findInput();
+
+      if (input) {
+        cleanup();
+        resolve(input);
+      }
+    });
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`等待${getProfileFieldLabel(fieldName)}输入框超时。`));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+function isProfileInputByLabel(element, fieldName) {
+  const semanticText = [
+    element.getAttribute("aria-label"),
+    element.getAttribute("placeholder"),
+    element.id ? document.querySelector(`label[for="${escapeCssString(element.id)}"]`)?.textContent : "",
+    element.closest("label")?.textContent
+  ]
+    .map(normalizeText)
+    .join("");
+  const lowerText = normalizeEnglishText(semanticText);
+
+  if (fieldName === "givenName") {
+    return semanticText.includes("名字") || lowerText.includes("firstname") || lowerText.includes("givenname");
+  }
+
+  if (fieldName === "familyName") {
+    return semanticText.includes("姓氏") || lowerText.includes("lastname") || lowerText.includes("familyname");
+  }
+
+  return semanticText.includes("密码") || lowerText.includes("password");
+}
+
+function getProfileFieldLabel(fieldName) {
+  if (fieldName === "givenName") {
+    return "名字";
+  }
+
+  if (fieldName === "familyName") {
+    return "姓氏";
+  }
+
+  return "密码";
+}
+
+function describeProfileInput(element) {
+  if (element.getAttribute("data-testid")) {
+    return `input[data-testid="${element.getAttribute("data-testid")}"]`;
+  }
+
+  if (element.getAttribute("autocomplete")) {
+    return `input[autocomplete="${element.getAttribute("autocomplete")}"]`;
+  }
+
+  if (element.name) {
+    return `input[name="${element.name}"]`;
+  }
+
+  return "input";
 }
 
 function waitForEmailCodeInput(timeoutMs) {

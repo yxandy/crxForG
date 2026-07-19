@@ -132,14 +132,19 @@
           <input autocomplete="one-time-code" data-input-otp="true" inputmode="text" pattern="^[a-zA-Z0-9]+$" maxlength="6" name="code">
         </label>
 
-        <label>
-          用户名
-          <input data-crx-fill="username" autocomplete="off">
+        <label class="signup-fields">
+          名字
+          <input data-testid="givenName" autocomplete="given-name" type="text" name="givenName">
         </label>
 
-        <label>
+        <label class="signup-fields">
+          姓氏
+          <input data-testid="familyName" autocomplete="family-name" type="text" name="familyName">
+        </label>
+
+        <label class="signup-fields">
           密码
-          <input data-auto-fill="password" type="password" autocomplete="off">
+          <input data-testid="password" autocomplete="off" type="password" name="password">
         </label>
 
         <label>
@@ -163,7 +168,9 @@
 
     <script>
       document.querySelector(".email-register").addEventListener("click", () => {
-        document.querySelector(".signup-fields").classList.add("visible");
+        document.querySelectorAll(".signup-fields").forEach((element) => {
+          element.classList.add("visible");
+        });
         document.querySelector("#result").textContent = "已点击邮箱注册";
       });
 

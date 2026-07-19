@@ -10,7 +10,7 @@
     <main class="shell">
       <header class="header">
         <h1>网页调试访问器配置</h1>
-        <p>Token 只保存在当前浏览器本地，不会写入项目文件。</p>
+        <p>Token 和注册密码只保存在当前浏览器本地，不会写入项目文件。</p>
       </header>
 
       <section class="panel">
@@ -27,6 +27,11 @@
         <label class="field">
           <span>Bearer Token</span>
           <input id="token" type="password" placeholder="mailmanage 和 NAS 验证码接口共用此 Token" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>注册密码</span>
+          <input id="registrationPassword" type="password" placeholder="用于第九步统一填入密码" autocomplete="off">
         </label>
 
         <div class="actions">

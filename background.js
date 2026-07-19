@@ -1,5 +1,6 @@
 importScripts("mailmanageClient.js");
 importScripts("emailCodeClient.js");
+importScripts("userProfileData.js");
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30000;
 
@@ -56,6 +57,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "FILL_EMAIL_CODE") {
     fillEmailCodeStep(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "MARK_G_EMAIL_REGISTERED") {
+    markGEmailRegisteredStep(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "FILL_USER_PROFILE") {
+    fillUserProfileStep(message.payload)
       .then((result) => sendResponse(result))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -269,6 +284,76 @@ async function fillEmailCodeStep(payload = {}) {
   return response;
 }
 
+async function markGEmailRegisteredStep(payload = {}) {
+  const email = String(payload.email || "").trim();
+
+  if (!email) {
+    throw new Error("缺少要回写注册状态的邮箱。");
+  }
+
+  const settings = await getMailmanageSettings();
+  const result = await mailmanageClient.updateGEmailStatus(settings, {
+    email,
+    isRegisteredG: true
+  });
+
+  await chrome.storage.local.set({
+    currentGEmailStatus: {
+      email: result.email,
+      emailAccountId: result.emailAccountId,
+      isRegisteredG: result.g?.isRegistered === true,
+      gRegisteredAt: result.g?.registeredAt || null
+    }
+  });
+
+  return {
+    ok: true,
+    email: result.email,
+    emailAccountId: result.emailAccountId,
+    g: result.g
+  };
+}
+
+async function fillUserProfileStep(payload = {}) {
+  const tabId = payload.tabId ?? (await getActiveTab())?.id;
+
+  if (!tabId) {
+    throw new Error("未找到可执行第九步的标签页。");
+  }
+
+  const profile = await buildUserProfile();
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content.js"]
+  });
+
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: "FILL_USER_PROFILE",
+    payload: {
+      ...profile,
+      waitMs: toPositiveNumber(payload.waitMs, 10000)
+    }
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "第九步执行失败。");
+  }
+
+  await chrome.storage.local.set({
+    currentUserProfile: {
+      givenName: profile.givenName,
+      familyName: profile.familyName
+    }
+  });
+
+  return {
+    ok: true,
+    givenName: profile.givenName,
+    familyName: profile.familyName
+  };
+}
+
 async function fillActiveTab(payload = {}) {
   const config = normalizeConfig(payload.config);
   const activeTab = await getActiveTab();
@@ -326,6 +411,25 @@ async function getEmailCodeSettings() {
     nasBaseUrl: saved.nasBaseUrl,
     token: saved.mailmanageToken
   };
+}
+
+async function buildUserProfile() {
+  const saved = await chrome.storage.local.get(["registrationPassword"]);
+  const password = String(saved.registrationPassword || "").trim();
+
+  if (!password) {
+    throw new Error("请先在扩展选项页配置注册密码。");
+  }
+
+  return {
+    givenName: pickRandomItem(self.userProfileData.givenNames),
+    familyName: pickRandomItem(self.userProfileData.familyNames),
+    password
+  };
+}
+
+function pickRandomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
 function normalizeUrl(input) {

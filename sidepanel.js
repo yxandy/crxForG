@@ -203,6 +203,60 @@ async function openTargetUrl() {
       ],
       "success"
     );
+    await waitRandomDelay(delayRange.minMs, delayRange.maxMs);
+
+    const markRegisteredResponse = await chrome.runtime.sendMessage({
+      type: "MARK_G_EMAIL_REGISTERED",
+      payload: {
+        email: claimResponse.email
+      }
+    });
+
+    if (!markRegisteredResponse?.ok) {
+      throw new Error(markRegisteredResponse?.error || "第八步执行失败。");
+    }
+
+    setStepStatus(
+      [
+        "第一步：网址打开成功",
+        "第二步，准备邮箱注册",
+        "第三步：领取邮箱成功",
+        "第四步：邮箱填入成功",
+        "第五步：注册按钮已点击",
+        "第六步：获取邮箱验证码成功",
+        "第七步：验证码填入成功",
+        "第八步：注册成功状态已回写"
+      ],
+      "success"
+    );
+    await waitRandomDelay(delayRange.minMs, delayRange.maxMs);
+
+    const profileResponse = await chrome.runtime.sendMessage({
+      type: "FILL_USER_PROFILE",
+      payload: {
+        tabId: response.tabId,
+        waitMs: 10000
+      }
+    });
+
+    if (!profileResponse?.ok) {
+      throw new Error(profileResponse?.error || "第九步执行失败。");
+    }
+
+    setStepStatus(
+      [
+        "第一步：网址打开成功",
+        "第二步，准备邮箱注册",
+        "第三步：领取邮箱成功",
+        "第四步：邮箱填入成功",
+        "第五步：注册按钮已点击",
+        "第六步：获取邮箱验证码成功",
+        "第七步：验证码填入成功",
+        "第八步：注册成功状态已回写",
+        "第九步：用户姓名和密码已填入"
+      ],
+      "success"
+    );
   } catch (error) {
     if (statusLines.length > 0) {
       setStepStatus([...statusLines, `执行失败：${error.message}`], "error");

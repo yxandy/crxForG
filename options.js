@@ -4,6 +4,7 @@ const DEFAULT_NAS_BASE_URL = "http://10.189.111.82:8787";
 const apiBaseUrlInput = document.querySelector("#apiBaseUrl");
 const nasBaseUrlInput = document.querySelector("#nasBaseUrl");
 const tokenInput = document.querySelector("#token");
+const registrationPasswordInput = document.querySelector("#registrationPassword");
 const saveButton = document.querySelector("#saveOptions");
 const statusOutput = document.querySelector("#status");
 
@@ -13,12 +14,14 @@ async function init() {
   const saved = await chrome.storage.local.get([
     "mailmanageApiBaseUrl",
     "nasBaseUrl",
-    "mailmanageToken"
+    "mailmanageToken",
+    "registrationPassword"
   ]);
 
   apiBaseUrlInput.value = saved.mailmanageApiBaseUrl || DEFAULT_API_BASE_URL;
   nasBaseUrlInput.value = saved.nasBaseUrl || DEFAULT_NAS_BASE_URL;
   tokenInput.value = saved.mailmanageToken || "";
+  registrationPasswordInput.value = saved.registrationPassword || "";
   setStatus("配置保存在当前浏览器本地。");
 
   saveButton.addEventListener("click", saveOptions);
@@ -28,6 +31,7 @@ async function saveOptions() {
   const apiBaseUrl = normalizeApiBaseUrl(apiBaseUrlInput.value);
   const nasBaseUrl = normalizeApiBaseUrl(nasBaseUrlInput.value);
   const token = tokenInput.value.trim();
+  const registrationPassword = registrationPasswordInput.value;
 
   if (!apiBaseUrl) {
     setStatus("请填写 mailmanage API 地址。", "error");
@@ -47,10 +51,17 @@ async function saveOptions() {
     return;
   }
 
+  if (!registrationPassword) {
+    setStatus("请填写注册密码。", "error");
+    registrationPasswordInput.focus();
+    return;
+  }
+
   await chrome.storage.local.set({
     mailmanageApiBaseUrl: apiBaseUrl,
     nasBaseUrl,
-    mailmanageToken: token
+    mailmanageToken: token,
+    registrationPassword
   });
 
   setStatus("配置已保存。", "success");

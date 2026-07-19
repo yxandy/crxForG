@@ -273,16 +273,23 @@ function isRegisterSubmitButton(element) {
   const tagName = element.tagName.toLowerCase();
   const type = (element.getAttribute("type") || "").toLowerCase();
   const text = normalizeText(element.textContent || element.value);
+  const lowerText = normalizeEnglishText(element.textContent || element.value);
+  const hasRegisterText =
+    text === "注册" ||
+    text === "创建账号" ||
+    lowerText === "signup" ||
+    lowerText === "register" ||
+    lowerText === "createaccount";
 
-  if (type === "submit" && text === "注册") {
+  if (type === "submit" && hasRegisterText) {
     return true;
   }
 
-  if (tagName === "button" && text === "注册") {
+  if (tagName === "button" && hasRegisterText) {
     return true;
   }
 
-  return element.getAttribute("role") === "button" && text === "注册";
+  return element.getAttribute("role") === "button" && hasRegisterText;
 }
 
 function waitForEmailInput(timeoutMs) {

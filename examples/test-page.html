@@ -51,6 +51,21 @@
         background: var(--panel);
       }
 
+      .signup-fields {
+        display: none;
+      }
+
+      .signup-fields.visible {
+        display: grid;
+      }
+
+      .email-register svg {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        vertical-align: -3px;
+      }
+
       label {
         display: grid;
         gap: 6px;
@@ -78,6 +93,14 @@
         font-weight: 700;
       }
 
+      button.email-register {
+        width: 100%;
+        margin-bottom: 14px;
+        border: 1px solid #c9d8f2;
+        background: #ffffff;
+        color: #1b6ef3;
+      }
+
       #result {
         min-height: 24px;
         color: var(--success);
@@ -88,9 +111,27 @@
   <body>
     <main>
       <h1>扩展本地测试页</h1>
-      <p>这个页面用于验证内部网页调试填充器。</p>
+      <p>这个页面用于验证内部网页调试访问器。</p>
+
+      <button class="email-register" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail">
+          <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+        </svg>
+        使用邮箱注册
+      </button>
 
       <form id="debugForm">
+        <label class="signup-fields">
+          邮箱
+          <input data-testid="email" autocomplete="email" type="email" name="email">
+        </label>
+
+        <label class="signup-fields">
+          验证码
+          <input autocomplete="one-time-code" data-input-otp="true" inputmode="text" pattern="^[a-zA-Z0-9]+$" maxlength="6" name="code">
+        </label>
+
         <label>
           用户名
           <input data-crx-fill="username" autocomplete="off">
@@ -115,15 +156,20 @@
           </select>
         </label>
 
-        <button type="submit">提交</button>
+        <button type="submit">注册</button>
         <div id="result"></div>
       </form>
     </main>
 
     <script>
+      document.querySelector(".email-register").addEventListener("click", () => {
+        document.querySelector(".signup-fields").classList.add("visible");
+        document.querySelector("#result").textContent = "已点击邮箱注册";
+      });
+
       document.querySelector("#debugForm").addEventListener("submit", (event) => {
         event.preventDefault();
-        document.querySelector("#result").textContent = "表单已提交";
+        document.querySelector("#result").textContent = "注册按钮已点击";
       });
     </script>
   </body>

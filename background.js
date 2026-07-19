@@ -1,6 +1,66 @@
+importScripts("mailmanageClient.js");
+importScripts("emailCodeClient.js");
+
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30000;
 
+chrome.runtime.onInstalled.addListener(() => {
+  configureSidePanel();
+});
+chrome.runtime.onStartup.addListener(() => {
+  configureSidePanel();
+});
+configureSidePanel();
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "OPEN_URL") {
+    openUrl(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "RUN_EMAIL_REGISTER_STEP") {
+    runEmailRegisterStep(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "CLAIM_G_EMAIL") {
+    claimGEmailStep()
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "FILL_CLAIMED_EMAIL") {
+    fillClaimedEmailStep(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "RUN_REGISTER_SUBMIT_STEP") {
+    runRegisterSubmitStep(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "GET_EMAIL_CODE") {
+    getEmailCodeStep(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "FILL_EMAIL_CODE") {
+    fillEmailCodeStep(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message?.type === "START_FILL") {
     openAndFill(message.payload)
       .then((result) => sendResponse(result))
@@ -18,6 +78,40 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
+async function configureSidePanel() {
+  if (!chrome.sidePanel?.setPanelBehavior) {
+    return;
+  }
+
+  try {
+    await chrome.sidePanel.setPanelBehavior({
+      openPanelOnActionClick: true
+    });
+  } catch (error) {
+    console.warn("侧边栏初始化失败：", error);
+  }
+}
+
+async function openUrl(payload = {}) {
+  const url = normalizeUrl(payload.url);
+  const timeoutMs = toPositiveNumber(
+    payload.navigationTimeoutMs,
+    DEFAULT_NAVIGATION_TIMEOUT_MS
+  );
+  const activeTab = await getActiveTab();
+  const tab = activeTab?.id
+    ? await chrome.tabs.update(activeTab.id, { active: true, url })
+    : await chrome.tabs.create({ active: true, url });
+
+  await waitForTabComplete(tab.id, timeoutMs);
+
+  return {
+    ok: true,
+    tabId: tab.id,
+    url
+  };
+}
+
 async function openAndFill(payload = {}) {
   const url = normalizeUrl(payload.url);
   const config = normalizeConfig(payload.config);
@@ -28,6 +122,151 @@ async function openAndFill(payload = {}) {
 
   await waitForTabComplete(tab.id, config.navigationTimeoutMs);
   return injectAndFill(tab.id, config);
+}
+
+async function runEmailRegisterStep(payload = {}) {
+  const tabId = payload.tabId ?? (await getActiveTab())?.id;
+
+  if (!tabId) {
+    throw new Error("未找到可执行第二步的标签页。");
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content.js"]
+  });
+
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: "CLICK_EMAIL_REGISTER",
+    payload: {
+      waitMs: toPositiveNumber(payload.waitMs, 10000)
+    }
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "第二步执行失败。");
+  }
+
+  return response;
+}
+
+async function claimGEmailStep() {
+  const settings = await getMailmanageSettings();
+  const result = await mailmanageClient.claimGEmail(settings);
+
+  await chrome.storage.local.set({
+    currentGEmailClaim: {
+      email: result.email,
+      emailAccountId: result.emailAccountId,
+      claimedAt: result.claimedAt
+    }
+  });
+
+  return {
+    ok: true,
+    email: result.email,
+    emailAccountId: result.emailAccountId,
+    claimedAt: result.claimedAt
+  };
+}
+
+async function fillClaimedEmailStep(payload = {}) {
+  const tabId = payload.tabId ?? (await getActiveTab())?.id;
+  const email = String(payload.email || "").trim();
+
+  if (!tabId) {
+    throw new Error("未找到可执行第四步的标签页。");
+  }
+
+  if (!email) {
+    throw new Error("缺少要填入的邮箱。");
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content.js"]
+  });
+
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: "FILL_EMAIL_FIELD",
+    payload: {
+      email,
+      waitMs: toPositiveNumber(payload.waitMs, 10000)
+    }
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "第四步执行失败。");
+  }
+
+  return response;
+}
+
+async function runRegisterSubmitStep(payload = {}) {
+  const tabId = payload.tabId ?? (await getActiveTab())?.id;
+
+  if (!tabId) {
+    throw new Error("未找到可执行第五步的标签页。");
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content.js"]
+  });
+
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: "CLICK_REGISTER_SUBMIT",
+    payload: {
+      waitMs: toPositiveNumber(payload.waitMs, 10000)
+    }
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "第五步执行失败。");
+  }
+
+  return response;
+}
+
+async function getEmailCodeStep(payload = {}) {
+  const settings = await getEmailCodeSettings();
+
+  return emailCodeClient.getLatestEmailCode(settings, {
+    recipient: payload.recipient,
+    consume: Boolean(payload.consume)
+  });
+}
+
+async function fillEmailCodeStep(payload = {}) {
+  const tabId = payload.tabId ?? (await getActiveTab())?.id;
+  const code = String(payload.code || "").trim();
+
+  if (!tabId) {
+    throw new Error("未找到可执行第七步的标签页。");
+  }
+
+  if (!code) {
+    throw new Error("缺少要填入的验证码。");
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content.js"]
+  });
+
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: "FILL_EMAIL_CODE",
+    payload: {
+      code,
+      waitMs: toPositiveNumber(payload.waitMs, 10000)
+    }
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "第七步执行失败。");
+  }
+
+  return response;
 }
 
 async function fillActiveTab(payload = {}) {
@@ -63,6 +302,30 @@ function getActiveTab() {
   return chrome.tabs
     .query({ active: true, currentWindow: true })
     .then((tabs) => tabs[0]);
+}
+
+async function getMailmanageSettings() {
+  const saved = await chrome.storage.local.get([
+    "mailmanageApiBaseUrl",
+    "mailmanageToken"
+  ]);
+
+  return {
+    apiBaseUrl: saved.mailmanageApiBaseUrl,
+    token: saved.mailmanageToken
+  };
+}
+
+async function getEmailCodeSettings() {
+  const saved = await chrome.storage.local.get([
+    "nasBaseUrl",
+    "mailmanageToken"
+  ]);
+
+  return {
+    nasBaseUrl: saved.nasBaseUrl,
+    token: saved.mailmanageToken
+  };
 }
 
 function normalizeUrl(input) {

@@ -6,17 +6,371 @@
   window.__internalAutoFillerLoaded = true;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== "AUTO_FILL") {
-      return false;
+    if (message?.type === "AUTO_FILL") {
+      runAutoFill(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      return true;
     }
 
-    runAutoFill(message.payload)
-      .then((result) => sendResponse({ ok: true, ...result }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    if (message?.type === "CLICK_EMAIL_REGISTER") {
+      clickEmailRegisterButton(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
 
-    return true;
+      return true;
+    }
+
+    if (message?.type === "FILL_EMAIL_FIELD") {
+      fillEmailField(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      return true;
+    }
+
+    if (message?.type === "CLICK_REGISTER_SUBMIT") {
+      clickRegisterSubmitButton(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      return true;
+    }
+
+    if (message?.type === "FILL_EMAIL_CODE") {
+      fillEmailCodeField(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      return true;
+    }
+
+    return false;
   });
 })();
+
+async function fillEmailCodeField(rawConfig = {}) {
+  const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
+  const code = String(rawConfig.code || "").trim();
+
+  if (!code) {
+    throw new Error("缺少要填入的验证码。");
+  }
+
+  const input = await waitForEmailCodeInput(waitMs);
+  input.focus();
+  setNativeValue(input, code);
+  dispatchOtpEvents(input, code);
+
+  return {
+    filled: true,
+    selector: describeEmailCodeInput(input)
+  };
+}
+
+async function clickRegisterSubmitButton(rawConfig = {}) {
+  const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
+  const button = await waitForRegisterSubmitButton(waitMs);
+
+  button.click();
+
+  return {
+    clicked: true,
+    matchedText: normalizeText(button.textContent)
+  };
+}
+
+async function fillEmailField(rawConfig = {}) {
+  const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
+  const email = String(rawConfig.email || "").trim();
+
+  if (!email) {
+    throw new Error("缺少要填入的邮箱。");
+  }
+
+  const input = await waitForEmailInput(waitMs);
+  setNativeValue(input, email);
+  dispatchInputEvents(input);
+
+  return {
+    filled: true,
+    selector: describeEmailInput(input)
+  };
+}
+
+async function clickEmailRegisterButton(rawConfig = {}) {
+  const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
+  const button = await waitForEmailRegisterButton(waitMs);
+
+  button.click();
+
+  return {
+    clicked: true,
+    matchedText: normalizeText(button.textContent)
+  };
+}
+
+function waitForEmailCodeInput(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const findInput = () => {
+      const semanticSelectors = [
+        "input[data-input-otp='true']",
+        "input[autocomplete='one-time-code']",
+        "input[name='code'][maxlength='6']",
+        "input[name='code']",
+        "input[inputmode='numeric'][maxlength='6']",
+        "input[inputmode='text'][maxlength='6']"
+      ];
+
+      for (const selector of semanticSelectors) {
+        const element = document.querySelector(selector);
+
+        if (element) {
+          return element;
+        }
+      }
+
+      return Array.from(document.querySelectorAll("input")).find((element) =>
+        isEmailCodeInputByLabel(element)
+      );
+    };
+
+    const firstMatch = findInput();
+
+    if (firstMatch) {
+      resolve(firstMatch);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const input = findInput();
+
+      if (input) {
+        cleanup();
+        resolve(input);
+      }
+    });
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("等待验证码输入框超时。"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+function isEmailCodeInputByLabel(element) {
+  const semanticText = [
+    element.getAttribute("aria-label"),
+    element.getAttribute("placeholder"),
+    element.id ? document.querySelector(`label[for="${escapeCssString(element.id)}"]`)?.textContent : "",
+    element.closest("label")?.textContent
+  ]
+    .map(normalizeText)
+    .join("");
+
+  return semanticText.includes("验证码") || semanticText.toLowerCase().includes("code");
+}
+
+function dispatchOtpEvents(element, code) {
+  element.dispatchEvent(new InputEvent("beforeinput", {
+    bubbles: true,
+    cancelable: true,
+    inputType: "insertText",
+    data: code
+  }));
+  element.dispatchEvent(new InputEvent("input", {
+    bubbles: true,
+    inputType: "insertText",
+    data: code
+  }));
+  element.dispatchEvent(new Event("change", { bubbles: true }));
+
+  try {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", code);
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      clipboardData
+    }));
+  } catch (_error) {
+    // 某些页面或浏览器环境不允许构造剪贴板事件，忽略即可。
+  }
+
+  element.dispatchEvent(new Event("blur", { bubbles: true }));
+}
+
+function describeEmailCodeInput(element) {
+  if (element.getAttribute("data-input-otp")) {
+    return "input[data-input-otp='true']";
+  }
+
+  if (element.getAttribute("autocomplete")) {
+    return `input[autocomplete="${element.getAttribute("autocomplete")}"]`;
+  }
+
+  if (element.name) {
+    return `input[name="${element.name}"]`;
+  }
+
+  return "input";
+}
+
+function waitForRegisterSubmitButton(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const findButton = () => {
+      const candidates = Array.from(
+        document.querySelectorAll("button, input[type='submit'], [role='button']")
+      );
+
+      return candidates.find(isRegisterSubmitButton);
+    };
+
+    const firstMatch = findButton();
+
+    if (firstMatch) {
+      resolve(firstMatch);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const button = findButton();
+
+      if (button) {
+        cleanup();
+        resolve(button);
+      }
+    });
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("等待“注册”按钮超时。"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+function isRegisterSubmitButton(element) {
+  const tagName = element.tagName.toLowerCase();
+  const type = (element.getAttribute("type") || "").toLowerCase();
+  const text = normalizeText(element.textContent || element.value);
+
+  if (type === "submit" && text === "注册") {
+    return true;
+  }
+
+  if (tagName === "button" && text === "注册") {
+    return true;
+  }
+
+  return element.getAttribute("role") === "button" && text === "注册";
+}
+
+function waitForEmailInput(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const findInput = () => {
+      const semanticSelectors = [
+        "input[data-testid='email']",
+        "input[type='email'][autocomplete='email']",
+        "input[type='email'][name='email']",
+        "input[autocomplete='email'][name='email']",
+        "input[type='email']",
+        "input[name='email']"
+      ];
+
+      for (const selector of semanticSelectors) {
+        const element = document.querySelector(selector);
+
+        if (element) {
+          return element;
+        }
+      }
+
+      return Array.from(document.querySelectorAll("input")).find((element) =>
+        isEmailInputByLabel(element)
+      );
+    };
+
+    const firstMatch = findInput();
+
+    if (firstMatch) {
+      resolve(firstMatch);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const input = findInput();
+
+      if (input) {
+        cleanup();
+        resolve(input);
+      }
+    });
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("等待邮箱输入框超时。"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+function isEmailInputByLabel(element) {
+  const semanticText = [
+    element.getAttribute("aria-label"),
+    element.getAttribute("placeholder"),
+    element.id ? document.querySelector(`label[for="${escapeCssString(element.id)}"]`)?.textContent : "",
+    element.closest("label")?.textContent
+  ]
+    .map(normalizeText)
+    .join("");
+
+  return semanticText.includes("邮箱") || semanticText.toLowerCase().includes("email");
+}
+
+function describeEmailInput(element) {
+  if (element.getAttribute("data-testid")) {
+    return `input[data-testid="${element.getAttribute("data-testid")}"]`;
+  }
+
+  if (element.name) {
+    return `input[name="${element.name}"]`;
+  }
+
+  if (element.type) {
+    return `input[type="${element.type}"]`;
+  }
+
+  return "input";
+}
 
 async function runAutoFill(rawConfig = {}) {
   const config = normalizeConfig(rawConfig);
@@ -80,6 +434,64 @@ async function runAutoFill(rawConfig = {}) {
   }
 
   return result;
+}
+
+function waitForEmailRegisterButton(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const findButton = () => {
+      const candidates = Array.from(
+        document.querySelectorAll("button, [role='button'], a")
+      );
+
+      return candidates.find(isEmailRegisterButton);
+    };
+
+    const firstMatch = findButton();
+
+    if (firstMatch) {
+      resolve(firstMatch);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const button = findButton();
+
+      if (button) {
+        cleanup();
+        resolve(button);
+      }
+    });
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("等待“使用邮箱注册”按钮超时。"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+function isEmailRegisterButton(element) {
+  const text = normalizeText(element.textContent);
+  const hasEmailRegisterText = text === "使用邮箱注册" || text.includes("邮箱注册");
+  const hasMailIcon = Boolean(
+    element.querySelector("svg.lucide-mail, svg[class*='lucide-mail']")
+  );
+
+  // 使用稳定的语义线索匹配按钮，避免依赖 Tailwind 生成的长 class。
+  return hasEmailRegisterText || (hasMailIcon && text.includes("邮箱"));
+}
+
+function normalizeText(value) {
+  return String(value || "").replace(/\s+/g, "").trim();
 }
 
 function normalizeConfig(config) {

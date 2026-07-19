@@ -1,6 +1,6 @@
-# 内部网页调试填充器
+# 内部网页调试访问器
 
-这是一个本地 Chrome 扩展，用于内部测试调试网页：在扩展弹窗里输入目标网址和填充配置，点击后打开页面，等待约定元素出现并自动填充。
+这是一个本地 Chrome 扩展，用于内部测试调试网页：点击扩展图标后，会在 Chrome 右侧打开固定侧边栏。在侧边栏里输入目标网址，点击“访问”后按步骤执行调试流程，并显示执行状态。
 
 ## 安装
 
@@ -9,11 +9,43 @@
 3. 点击“加载已解压的扩展程序”
 4. 选择当前目录：`/Users/mac11/Documents/crxForG`
 
+## 配置
+
+点击侧边栏右上角“配置”，或在扩展图标上右键打开“选项”。
+
+配置项包括：
+
+- `mailmanage API 地址`：默认 `https://mailmanage.yxandy.cc.cd`
+- `NAS 验证码 API 地址`：默认 `http://10.189.111.82:8787`
+- `Bearer Token`：填写共用 Token，用于 mailmanage 和 NAS 验证码接口
+
+Token 只保存在当前浏览器本地，不会写入项目文件，也不要提交到 git。
+
 ## 使用
 
-在扩展弹窗里填写目标网址和 JSON 配置，然后点击“打开并填充”。
+点击扩展图标打开右侧侧边栏，在侧边栏里填写随机延迟范围和目标网址，然后点击“访问”。
 
-如果页面已经打开，也可以点击“填充当前页”，不再跳转网址。
+延迟范围单位是毫秒。例如最小延迟填 `200`、最大延迟填 `400`，每一步操作之间会随机等待 `200` 到 `400` 毫秒。
+
+当前流程包含七步：
+
+1. 打开目标网址，成功后显示“第一步：网址打开成功”
+2. 查找并点击“使用邮箱注册”按钮，成功后显示“第二步，准备邮箱注册”
+3. 调用 `mailmanage` 接口领取 G 邮箱，成功后显示“第三步：领取邮箱成功”
+4. 将领取到的邮箱填入邮箱输入框，成功后显示“第四步：邮箱填入成功”
+5. 查找并点击“注册”按钮，成功后显示“第五步：注册按钮已点击”
+6. 调用 NAS 验证码接口轮询邮箱验证码，成功后显示“第六步：获取邮箱验证码成功”
+7. 将验证码填入验证码输入框，成功后显示“第七步：验证码填入成功”
+
+第二步不会依赖按钮上的整串样式 class，而是用按钮文本“邮箱注册”和邮件图标 `lucide-mail` 这类更稳定的语义线索查找。
+
+第四步不会依赖输入框上的整串样式 class，而是优先使用 `data-testid="email"`、`type="email"`、`autocomplete="email"`、`name="email"` 等语义属性查找。
+
+第五步不会依赖按钮上的整串样式 class，而是优先使用 `button[type="submit"]` 和按钮文本“注册”查找。
+
+第六步默认最多等待 120 秒，每 5 秒查询一次。等待阶段不会消费验证码，拿到的验证码会暂存在当前浏览器本地。
+
+第七步不会依赖验证码输入框上的样式 class，而是优先使用 `data-input-otp="true"`、`autocomplete="one-time-code"`、`name="code"`、`maxlength="6"` 等语义属性查找。
 
 可以先用本地测试页验证流程：
 
@@ -23,112 +55,9 @@ file:///Users/mac11/Documents/crxForG/examples/test-page.html
 
 使用 `file://` 本地测试页时，需要在扩展详情里打开“允许访问文件网址”。
 
-## 推荐元素约定
-
-简单场景建议在业务页面元素上约定以下属性之一：
-
-```html
-<input data-crx-fill="username">
-<input data-auto-fill="password">
-<input name="phone">
-```
-
-然后在配置里使用 `values`：
-
-```json
-{
-  "waitMs": 10000,
-  "navigationTimeoutMs": 30000,
-  "values": {
-    "username": "test_user",
-    "password": "123456",
-    "phone": "13800138000",
-    "role": "admin"
-  },
-  "clicks": [
-    "button[type='submit']"
-  ]
-}
-```
-
-扩展会按顺序匹配：
-
-1. `[data-crx-fill="字段名"]`
-2. `[data-auto-fill="字段名"]`
-3. `[name="字段名"]`
-
-## 复杂选择器
-
-如果页面不能增加约定属性，可以使用 `fields` 指定 CSS 选择器：
-
-```json
-{
-  "waitMs": 10000,
-  "fields": [
-    {
-      "selector": "#loginAccount",
-      "value": "test_user"
-    },
-    {
-      "selector": "input[type='password']",
-      "value": "123456"
-    },
-    {
-      "selector": "select[name='role']",
-      "value": "admin"
-    }
-  ],
-  "clicks": [
-    {
-      "selector": ".login-button"
-    }
-  ]
-}
-```
-
-## 读取页面元素
-
-可以用 `reads` 在填充前读取页面元素，结果会用于执行统计，后续可以扩展为调试日志面板。
-
-```json
-{
-  "reads": [
-    {
-      "name": "页面标题",
-      "selector": "h1",
-      "property": "text"
-    },
-    {
-      "name": "当前账号",
-      "selector": "input[name='username']",
-      "property": "value"
-    }
-  ]
-}
-```
-
-`property` 支持：
-
-- `value`
-- `text`
-- `html`
-- `checked`
-- `attribute`
-
-读取属性时可额外指定：
-
-```json
-{
-  "name": "链接地址",
-  "selector": "a.help",
-  "property": "attribute",
-  "attribute": "href"
-}
-```
-
 ## 注意事项
 
-- 不能填充 `chrome://`、Chrome Web Store 等浏览器特殊页面。
-- 文件上传框不能被扩展直接填充，这是浏览器安全限制。
-- 如果元素在跨域 iframe 内，需要进一步增加 iframe 注入逻辑。
-- React、Vue 等页面通常需要触发 `input` 和 `change` 事件，本扩展已在填充后自动派发这些事件。
+- 不能访问 `chrome://`、Chrome Web Store 等浏览器特殊页面。
+- 不写协议时会默认使用 `https://`。
+- 这一版侧边栏暂时只保留访问能力，自动填充入口后续再加回来。
+- 固定侧边栏依赖 Chrome Side Panel API，需要 Chrome 114 或更高版本。

@@ -16,8 +16,7 @@
 }
 
 body {
-  width: 420px;
-  min-height: 560px;
+  min-width: 280px;
   margin: 0;
   background: var(--bg);
   color: var(--text);
@@ -26,6 +25,7 @@ body {
 }
 
 .shell {
+  min-height: 100vh;
   padding: 16px;
 }
 
@@ -33,12 +33,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 h1 {
   margin: 0;
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.25;
   font-weight: 700;
 }
@@ -67,56 +74,58 @@ p {
   gap: 12px;
 }
 
+.delay-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .field {
   display: grid;
   gap: 6px;
   font-weight: 650;
 }
 
-input,
-textarea {
+input {
   width: 100%;
+  height: 40px;
   border: 1px solid var(--line);
   border-radius: 8px;
+  padding: 0 10px;
   background: var(--panel);
   color: var(--text);
   outline: none;
   font: inherit;
 }
 
-input {
-  height: 40px;
-  padding: 0 10px;
-}
-
-textarea {
-  min-height: 330px;
-  padding: 10px;
-  resize: vertical;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-input:focus,
-textarea:focus {
+input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(27, 110, 243, 0.14);
 }
 
-.toolbar {
-  display: grid;
-  grid-template-columns: 0.75fr 1fr 1.15fr;
-  gap: 8px;
-}
-
 button {
-  height: 38px;
+  width: 100%;
+  height: 40px;
   border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+}
+
+button.ghost {
+  width: auto;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+}
+
+button.ghost:hover {
+  border-color: #b7c1d2;
+  background: #ffffff;
 }
 
 button:disabled {
@@ -133,24 +142,15 @@ button:disabled {
   background: var(--primary-dark);
 }
 
-.secondary {
-  border-color: var(--line);
-  background: var(--panel);
-  color: var(--text);
-}
-
-.secondary:hover {
-  border-color: #b7c1d2;
-}
-
 .status {
-  min-height: 38px;
+  min-height: 40px;
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
   color: var(--muted);
   line-height: 1.4;
+  white-space: pre-line;
 }
 
 .status.success {

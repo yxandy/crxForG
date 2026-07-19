@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>内部网页调试访问器</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <h1>网页调试访问器</h1>
+          <p>固定侧边栏模式</p>
+        </div>
+        <div class="header-actions">
+          <button id="openOptions" class="ghost" type="button" title="打开配置页">配置</button>
+          <span class="badge">MV3</span>
+        </div>
+      </header>
+
+      <section class="form">
+        <div class="delay-grid">
+          <label class="field">
+            <span>最小延迟</span>
+            <input id="delayMinMs" type="number" min="0" step="1" inputmode="numeric" placeholder="200" autocomplete="off">
+          </label>
+
+          <label class="field">
+            <span>最大延迟</span>
+            <input id="delayMaxMs" type="number" min="0" step="1" inputmode="numeric" placeholder="400" autocomplete="off">
+          </label>
+        </div>
+
+        <label class="field">
+          <span>目标网址</span>
+          <input id="targetUrl" type="url" placeholder="https://example.com/login" autocomplete="off">
+        </label>
+
+        <button id="openUrl" class="primary" type="button" title="打开目标网址">访问</button>
+
+        <output id="status" class="status" role="status"></output>
+      </section>
+    </main>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

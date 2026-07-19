@@ -1,20 +1,28 @@
 {
   "manifest_version": 3,
-  "name": "内部网页调试填充器",
+  "name": "内部网页调试访问器",
   "version": "0.1.0",
-  "description": "打开指定网址并按约定选择器自动填充表单，仅供内部测试调试。",
-  "minimum_chrome_version": "102",
+  "description": "打开指定网址并按步骤执行内部网页调试流程，仅供内部测试调试。",
+  "minimum_chrome_version": "114",
   "permissions": [
+    "sidePanel",
     "scripting",
     "storage",
     "tabs"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "http://10.189.111.82:8787/*"
   ],
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "网页调试填充器"
+    "default_title": "网页调试访问器"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "background": {
     "service_worker": "background.js"

@@ -1,6 +1,7 @@
 importScripts("mailmanageClient.js");
 importScripts("emailCodeClient.js");
 importScripts("userProfileData.js");
+importScripts("sub2apiClient.js");
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30000;
 
@@ -87,6 +88,50 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     fillUserProfileStep(message.payload)
       .then((result) => sendResponse(result))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "START_GROK_SUB2API_AUTH") {
+    startGrokSub2ApiAuth({
+      autoImport: true
+    })
+      .then((result) => sendResponse(result))
+      .catch(async (error) => {
+        const debug = error.debug || null;
+
+        if (debug) {
+          await chrome.storage.local.set({
+            lastSub2ApiGrokAuthDebug: debug
+          });
+        }
+
+        sendResponse({
+          ok: false,
+          error: error.message,
+          debug
+        });
+      });
+    return true;
+  }
+
+  if (message?.type === "COMPLETE_GROK_SUB2API_IMPORT") {
+    completeGrokSub2ApiImport(message.payload)
+      .then((result) => sendResponse(result))
+      .catch(async (error) => {
+        const debug = error.debug || null;
+
+        if (debug) {
+          await chrome.storage.local.set({
+            lastSub2ApiGrokImportDebug: debug
+          });
+        }
+
+        sendResponse({
+          ok: false,
+          error: error.message,
+          debug
+        });
+      });
     return true;
   }
 
@@ -371,6 +416,238 @@ async function fillUserProfileStep(payload = {}) {
   };
 }
 
+async function startGrokSub2ApiAuth(options = {}) {
+  const settings = await getSub2ApiSettings();
+  const session = await sub2apiClient.createGrokAuthSession(settings);
+  const tab = await chrome.tabs.create({
+    active: true,
+    url: session.authUrl
+  });
+
+  await chrome.storage.local.set({
+    currentSub2ApiGrokAuthSession: {
+      sessionId: session.sessionId,
+      state: session.state,
+      redirectUri: session.redirectUri,
+      proxyId: session.proxyId,
+      authTabId: tab.id,
+      createdAt: new Date().toISOString()
+    }
+  });
+
+  if (options.autoImport) {
+    return runGrokSub2ApiAutoImport(tab.id, session);
+  }
+
+  return {
+    ok: true,
+    tabId: tab.id,
+    redirectUri: session.redirectUri
+  };
+}
+
+async function runGrokSub2ApiAutoImport(tabId, session) {
+  await waitForTabComplete(tabId, DEFAULT_NAVIGATION_TIMEOUT_MS);
+  await clickGrokAllowButton(tabId);
+
+  const codeResult = await waitForGrokAuthCode(tabId, 90000);
+  const account = await createGrokSub2ApiAccountFromCode({
+    code: codeResult.code,
+    session
+  });
+  await saveCurrentSub2ApiGrokAccount(account);
+  const linkedEmailResult = await tryMarkCurrentGEmailLinkedS2A();
+
+  return {
+    ok: true,
+    tabId,
+    authCodeRead: true,
+    authCodeSelector: codeResult.selector,
+    account,
+    linkedEmail: linkedEmailResult.email || "",
+    linkedEmailError: linkedEmailResult.error || "",
+    linkedEmailDebug: linkedEmailResult.debug || null
+  };
+}
+
+async function clickGrokAllowButton(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content.js"]
+  });
+
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: "CLICK_GROK_ALLOW",
+    payload: {
+      waitMs: 20000
+    }
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "点击 Grok 授权 Allow 按钮失败。");
+  }
+
+  return response;
+}
+
+async function waitForGrokAuthCode(tabId, timeoutMs) {
+  const startedAt = Date.now();
+  let lastError = "";
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["content.js"]
+      });
+
+      const response = await chrome.tabs.sendMessage(tabId, {
+        type: "READ_GROK_AUTH_CODE",
+        payload: {
+          waitMs: 1500
+        }
+      });
+
+      if (response?.ok && response.code) {
+        return {
+          code: response.code,
+          selector: response.selector || ""
+        };
+      }
+
+      lastError = response?.error || "暂未读到授权码。";
+    } catch (error) {
+      lastError = error.message;
+    }
+
+    await sleep(1000);
+  }
+
+  throw new Error(`等待 Grok 授权码超时：${lastError}`);
+}
+
+async function completeGrokSub2ApiImport(payload = {}) {
+  const code = String(payload.code || "").trim();
+
+  if (!code) {
+    throw new Error("请先粘贴 Grok 授权码。");
+  }
+
+  const saved = await chrome.storage.local.get([
+    "currentSub2ApiGrokAuthSession"
+  ]);
+  const session = saved.currentSub2ApiGrokAuthSession;
+
+  if (!session?.sessionId) {
+    throw new Error("没有找到本轮 Grok 授权会话，请先点击“导入 Grok 到 Sub2API”生成授权链接。");
+  }
+
+  const account = await createGrokSub2ApiAccountFromCode({
+    code,
+    session
+  });
+  const linkedEmailResult = await tryMarkCurrentGEmailLinkedS2A();
+
+  await saveCurrentSub2ApiGrokAccount(account);
+
+  return {
+    ok: true,
+    account,
+    linkedEmail: linkedEmailResult.email || "",
+    linkedEmailError: linkedEmailResult.error || "",
+    linkedEmailDebug: linkedEmailResult.debug || null
+  };
+}
+
+async function createGrokSub2ApiAccountFromCode(input = {}) {
+  const settings = await getSub2ApiSettings();
+  const session = input.session || {};
+
+  return sub2apiClient.createSub2ApiGrokAccount(settings, {
+    sessionId: session.sessionId,
+    state: session.state,
+    code: input.code,
+    redirectUri: session.redirectUri,
+    proxyId: session.proxyId
+  });
+}
+
+async function saveCurrentSub2ApiGrokAccount(account = {}) {
+  await chrome.storage.local.set({
+    currentSub2ApiGrokAccount: {
+      id: account.id ?? null,
+      name: account.name || "",
+      platform: account.platform || "",
+      type: account.type || "",
+      status: account.status || "",
+      importedAt: new Date().toISOString()
+    },
+    lastSub2ApiGrokImportDebug: null
+  });
+}
+
+async function markCurrentGEmailLinkedS2A() {
+  const saved = await chrome.storage.local.get([
+    "currentGEmailClaim",
+    "currentGEmailStatus"
+  ]);
+  const email = String(
+    saved.currentGEmailClaim?.email ||
+    saved.currentGEmailStatus?.email ||
+    ""
+  ).trim();
+
+  if (!email) {
+    throw new Error("Sub2API 账号已创建，但没有找到当前邮箱，无法回写 s2a 状态。");
+  }
+
+  const settings = await getMailmanageSettings();
+  const result = await mailmanageClient.updateGEmailStatus(settings, {
+    email,
+    isLinkedS2A: true
+  });
+  const debug = result.debug || null;
+
+  await chrome.storage.local.set({
+    currentGEmailStatus: {
+      email: result.email,
+      emailAccountId: result.emailAccountId,
+      isRegisteredG: result.g?.isRegistered === true,
+      gRegisteredAt: result.g?.registeredAt || null,
+      isLinkedS2A: result.g?.isLinkedS2A === true,
+      linkedAt: result.g?.linkedAt || null
+    },
+    lastMailmanageS2AStatusDebug: debug
+  });
+
+  return {
+    email: result.email,
+    emailAccountId: result.emailAccountId,
+    g: result.g,
+    debug
+  };
+}
+
+async function tryMarkCurrentGEmailLinkedS2A() {
+  try {
+    return await markCurrentGEmailLinkedS2A();
+  } catch (error) {
+    const debug = error.debug || null;
+
+    if (debug) {
+      await chrome.storage.local.set({
+        lastMailmanageS2AStatusDebug: debug
+      });
+    }
+
+    return {
+      email: "",
+      error: error.message,
+      debug
+    };
+  }
+}
+
 async function fillActiveTab(payload = {}) {
   const config = normalizeConfig(payload.config);
   const activeTab = await getActiveTab();
@@ -430,6 +707,22 @@ async function getEmailCodeSettings() {
   };
 }
 
+async function getSub2ApiSettings() {
+  const saved = await chrome.storage.local.get([
+    "sub2apiBaseUrl",
+    "sub2apiAdminApiKey",
+    "sub2apiGrokRedirectUri",
+    "sub2apiProxyId"
+  ]);
+
+  return {
+    apiBaseUrl: saved.sub2apiBaseUrl,
+    adminApiKey: saved.sub2apiAdminApiKey,
+    redirectUri: saved.sub2apiGrokRedirectUri,
+    proxyId: saved.sub2apiProxyId
+  };
+}
+
 async function buildUserProfile() {
   const saved = await chrome.storage.local.get(["registrationPassword"]);
   const password = String(saved.registrationPassword || "").trim();
@@ -478,6 +771,10 @@ function normalizeConfig(config = {}) {
 function toPositiveNumber(value, fallback) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : fallback;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function waitForTabComplete(tabId, timeoutMs) {

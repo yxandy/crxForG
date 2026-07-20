@@ -38,6 +38,14 @@
         </label>
 
         <button id="openUrl" class="primary" type="button" title="打开目标网址">访问</button>
+        <button id="startGrokSub2ApiAuth" class="secondary" type="button" title="打开 Grok 授权页">导入 Grok 到 Sub2API</button>
+
+        <label class="field">
+          <span>Grok 授权码</span>
+          <input id="grokAuthCode" type="text" placeholder="完成授权后复制页面中的授权码" autocomplete="off">
+        </label>
+
+        <button id="completeGrokSub2ApiImport" class="secondary" type="button" title="用授权码创建 Sub2API 账号">完成 Grok 导入</button>
 
         <output id="status" class="status" role="status"></output>
       </section>

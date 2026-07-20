@@ -54,6 +54,22 @@
       return true;
     }
 
+    if (message?.type === "CLICK_GROK_ALLOW") {
+      clickGrokAllowButton(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      return true;
+    }
+
+    if (message?.type === "READ_GROK_AUTH_CODE") {
+      readGrokAuthCode(message.payload)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+
+      return true;
+    }
+
     return false;
   });
 })();
@@ -97,6 +113,154 @@ async function fillUserProfileFields(rawConfig = {}) {
       password: describeProfileInput(passwordInput)
     }
   };
+}
+
+async function clickGrokAllowButton(rawConfig = {}) {
+  const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
+  const button = await waitForGrokAllowButton(waitMs);
+
+  button.click();
+
+  return {
+    clicked: true,
+    matchedText: normalizeText(button.textContent)
+  };
+}
+
+async function readGrokAuthCode(rawConfig = {}) {
+  const waitMs = toPositiveNumber(rawConfig.waitMs, 10000);
+  const input = await waitForGrokAuthCodeInput(waitMs);
+  const code = String(input.value || input.getAttribute("value") || "").trim();
+
+  if (!code) {
+    throw new Error("授权码输入框为空。");
+  }
+
+  return {
+    code,
+    selector: describeGrokAuthCodeInput(input)
+  };
+}
+
+function waitForGrokAllowButton(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const findButton = () => {
+      const candidates = Array.from(
+        document.querySelectorAll("button, [role='button']")
+      );
+
+      return candidates.find(isGrokAllowButton);
+    };
+
+    const firstMatch = findButton();
+
+    if (firstMatch) {
+      resolve(firstMatch);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const button = findButton();
+
+      if (button) {
+        cleanup();
+        resolve(button);
+      }
+    });
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("等待 Grok 授权 Allow 按钮超时。"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+function isGrokAllowButton(element) {
+  const text = normalizeEnglishText(element.textContent || element.value);
+  const ariaLabel = normalizeEnglishText(element.getAttribute("aria-label"));
+
+  return (
+    !element.disabled &&
+    element.getAttribute("aria-disabled") !== "true" &&
+    (text === "allow" || ariaLabel === "allow")
+  );
+}
+
+function waitForGrokAuthCodeInput(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const findInput = () =>
+      Array.from(document.querySelectorAll("input[type='text'], input:not([type])"))
+        .find(isGrokAuthCodeInput);
+
+    const firstMatch = findInput();
+
+    if (firstMatch) {
+      resolve(firstMatch);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const input = findInput();
+
+      if (input) {
+        cleanup();
+        resolve(input);
+      }
+    });
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("等待 Grok 授权码输入框超时。"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+function isGrokAuthCodeInput(element) {
+  const value = String(element.value || element.getAttribute("value") || "").trim();
+
+  return (
+    Boolean(value) &&
+    value.length >= 24 &&
+    /^[A-Za-z0-9_-]+$/.test(value) &&
+    (element.readOnly || element.disabled)
+  );
+}
+
+function describeGrokAuthCodeInput(element) {
+  if (element.readOnly && element.disabled) {
+    return "input[readonly][disabled]";
+  }
+
+  if (element.readOnly) {
+    return "input[readonly]";
+  }
+
+  if (element.disabled) {
+    return "input[disabled]";
+  }
+
+  return "input[type='text']";
 }
 
 async function fillEmailCodeField(rawConfig = {}) {

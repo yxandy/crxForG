@@ -34,6 +34,28 @@
           <input id="registrationPassword" type="password" placeholder="用于第九步统一填入密码" autocomplete="off">
         </label>
 
+        <div class="section-title">Sub2API Grok 导入</div>
+
+        <label class="field">
+          <span>Sub2API 地址</span>
+          <input id="sub2apiBaseUrl" type="url" placeholder="https://sub2api.example.com" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>Sub2API Admin API Key</span>
+          <input id="sub2apiAdminApiKey" type="password" placeholder="请求头 x-api-key 使用的管理员 API Key" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>Grok OAuth 回调地址</span>
+          <input id="sub2apiGrokRedirectUri" type="url" placeholder="http://127.0.0.1:56121/callback" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>Sub2API 代理 ID</span>
+          <input id="sub2apiProxyId" type="number" min="0" step="1" inputmode="numeric" placeholder="不需要代理可留空" autocomplete="off">
+        </label>
+
         <div class="actions">
           <button id="saveOptions" type="button">保存配置</button>
         </div>

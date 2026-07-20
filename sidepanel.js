@@ -3,6 +3,9 @@ const delayMinInput = document.querySelector("#delayMinMs");
 const delayMaxInput = document.querySelector("#delayMaxMs");
 const statusOutput = document.querySelector("#status");
 const openUrlButton = document.querySelector("#openUrl");
+const startGrokSub2ApiAuthButton = document.querySelector("#startGrokSub2ApiAuth");
+const completeGrokSub2ApiImportButton = document.querySelector("#completeGrokSub2ApiImport");
+const grokAuthCodeInput = document.querySelector("#grokAuthCode");
 const openOptionsButton = document.querySelector("#openOptions");
 let statusLines = [];
 
@@ -21,6 +24,8 @@ async function init() {
   setStatus("请输入目标网址。");
 
   openUrlButton.addEventListener("click", openTargetUrl);
+  startGrokSub2ApiAuthButton.addEventListener("click", startGrokSub2ApiAuth);
+  completeGrokSub2ApiImportButton.addEventListener("click", completeGrokSub2ApiImport);
   openOptionsButton.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
@@ -271,12 +276,112 @@ async function openTargetUrl() {
   }
 }
 
+async function startGrokSub2ApiAuth() {
+  setBusy(true);
+  setStepStatus([
+    "Grok 导入：正在生成授权链接...",
+    "Grok 导入：稍后会自动点击 Allow 并读取授权码"
+  ]);
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "START_GROK_SUB2API_AUTH"
+    });
+
+    if (!response?.ok) {
+      throw createStepError(
+        response?.error || "Grok 授权链接生成失败。",
+        response?.debug
+      );
+    }
+
+    const account = response.account || {};
+    const linkedEmailLine = response.linkedEmailError
+      ? `s2a 状态回写失败：${response.linkedEmailError}`
+      : `s2a 状态回写邮箱：${response.linkedEmail || "未返回"}`;
+    setStepStatus(
+      [
+        "Grok 导入：已自动点击 Allow",
+        "Grok 导入：已自动读取授权码",
+        "Grok 导入：Sub2API 账号创建成功",
+        `账号 ID：${account.id ?? "未返回"}`,
+        `账号名称：${account.name || "未返回"}`,
+        `账号状态：${account.status || "未返回"}`,
+        linkedEmailLine
+      ],
+      response.linkedEmailError ? "error" : "success"
+    );
+  } catch (error) {
+    setStepStatus(
+      [
+        buildErrorStatusText(error),
+        "可以再次点击“导入 Grok 到 Sub2API”重新生成授权页。",
+        "如果已看到授权码，也可以粘贴后点击“完成 Grok 导入”。"
+      ],
+      "error"
+    );
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function completeGrokSub2ApiImport() {
+  const code = grokAuthCodeInput.value.trim();
+
+  if (!code) {
+    setStatus("请先粘贴 Grok 授权码。", "error");
+    grokAuthCodeInput.focus();
+    return;
+  }
+
+  setBusy(true);
+  setStepStatus(["Grok 导入：正在创建 Sub2API 账号..."]);
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "COMPLETE_GROK_SUB2API_IMPORT",
+      payload: {
+        code
+      }
+    });
+
+    if (!response?.ok) {
+      throw createStepError(
+        response?.error || "创建 Sub2API Grok 账号失败。",
+        response?.debug
+      );
+    }
+
+    const account = response.account || {};
+    const linkedEmailLine = response.linkedEmailError
+      ? `s2a 状态回写失败：${response.linkedEmailError}`
+      : `s2a 状态回写邮箱：${response.linkedEmail || "未返回"}`;
+    setStepStatus(
+      [
+        "Grok 导入：Sub2API 账号创建成功",
+        `账号 ID：${account.id ?? "未返回"}`,
+        `账号名称：${account.name || "未返回"}`,
+        `账号状态：${account.status || "未返回"}`,
+        linkedEmailLine
+      ],
+      response.linkedEmailError ? "error" : "success"
+    );
+  } catch (error) {
+    setStatus(buildErrorStatusText(error), "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
 function setBusy(isBusy) {
   openUrlButton.disabled = isBusy;
+  startGrokSub2ApiAuthButton.disabled = isBusy;
+  completeGrokSub2ApiImportButton.disabled = isBusy;
   openOptionsButton.disabled = isBusy;
   delayMinInput.disabled = isBusy;
   delayMaxInput.disabled = isBusy;
   targetUrlInput.disabled = isBusy;
+  grokAuthCodeInput.disabled = isBusy;
 }
 
 function setStatus(message, type = "") {
@@ -356,8 +461,16 @@ function formatDebugInfo(debug) {
     debug.action ? `动作=${debug.action}` : "",
     debug.method ? `方法=${debug.method}` : "",
     debug.url ? `地址=${debug.url}` : "",
+    debug.redirectUri ? `回调=${debug.redirectUri}` : "",
+    debug.proxyId !== undefined && debug.proxyId !== null
+      ? `代理ID=${debug.proxyId}`
+      : "",
     debug.email ? `邮箱=${debug.email}` : "",
     debug.status ? `状态=${debug.status}` : "",
+    debug.responseCode !== undefined && debug.responseCode !== null
+      ? `业务码=${debug.responseCode}`
+      : "",
+    debug.responseMessage ? `响应=${debug.responseMessage}` : "",
     debug.errorName ? `错误类型=${debug.errorName}` : "",
     debug.errorMessage ? `错误信息=${debug.errorMessage}` : "",
     debug.failedAt ? `失败时间=${debug.failedAt}` : ""

@@ -142,6 +142,17 @@ button:disabled {
   background: var(--primary-dark);
 }
 
+.secondary {
+  border-color: #b7c1d2;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.secondary:hover {
+  background: #eef5ff;
+  border-color: #8daee8;
+}
+
 .status {
   min-height: 40px;
   padding: 9px 10px;

@@ -213,7 +213,10 @@ async function openTargetUrl() {
     });
 
     if (!markRegisteredResponse?.ok) {
-      throw new Error(markRegisteredResponse?.error || "第八步执行失败。");
+      throw createStepError(
+        markRegisteredResponse?.error || "第八步执行失败。",
+        markRegisteredResponse?.debug
+      );
     }
 
     setStepStatus(
@@ -259,9 +262,9 @@ async function openTargetUrl() {
     );
   } catch (error) {
     if (statusLines.length > 0) {
-      setStepStatus([...statusLines, `执行失败：${error.message}`], "error");
+      setStepStatus([...statusLines, buildErrorStatusText(error)], "error");
     } else {
-      setStatus(error.message, "error");
+      setStatus(buildErrorStatusText(error), "error");
     }
   } finally {
     setBusy(false);
@@ -330,6 +333,37 @@ function waitRandomDelay(minMs, maxMs) {
 
 function getRandomInteger(minValue, maxValue) {
   return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
+}
+
+function createStepError(message, debug) {
+  const error = new Error(message);
+  error.debug = debug || null;
+  return error;
+}
+
+function buildErrorStatusText(error) {
+  const lines = [`执行失败：${error.message}`];
+
+  if (error.debug) {
+    lines.push(`调试：${formatDebugInfo(error.debug)}`);
+  }
+
+  return lines.join("\n");
+}
+
+function formatDebugInfo(debug) {
+  return [
+    debug.action ? `动作=${debug.action}` : "",
+    debug.method ? `方法=${debug.method}` : "",
+    debug.url ? `地址=${debug.url}` : "",
+    debug.email ? `邮箱=${debug.email}` : "",
+    debug.status ? `状态=${debug.status}` : "",
+    debug.errorName ? `错误类型=${debug.errorName}` : "",
+    debug.errorMessage ? `错误信息=${debug.errorMessage}` : "",
+    debug.failedAt ? `失败时间=${debug.failedAt}` : ""
+  ]
+    .filter(Boolean)
+    .join("；");
 }
 
 async function waitForEmailCode(recipient) {

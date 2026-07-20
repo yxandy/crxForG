@@ -65,7 +65,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "MARK_G_EMAIL_REGISTERED") {
     markGEmailRegisteredStep(message.payload)
       .then((result) => sendResponse(result))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
+      .catch(async (error) => {
+        const debug = error.debug || null;
+
+        if (debug) {
+          await chrome.storage.local.set({
+            lastMailmanageStatusDebug: debug
+          });
+        }
+
+        sendResponse({
+          ok: false,
+          error: error.message,
+          debug
+        });
+      });
     return true;
   }
 
@@ -296,6 +310,7 @@ async function markGEmailRegisteredStep(payload = {}) {
     email,
     isRegisteredG: true
   });
+  const debug = result.debug || null;
 
   await chrome.storage.local.set({
     currentGEmailStatus: {
@@ -303,14 +318,16 @@ async function markGEmailRegisteredStep(payload = {}) {
       emailAccountId: result.emailAccountId,
       isRegisteredG: result.g?.isRegistered === true,
       gRegisteredAt: result.g?.registeredAt || null
-    }
+    },
+    lastMailmanageStatusDebug: debug
   });
 
   return {
     ok: true,
     email: result.email,
     emailAccountId: result.emailAccountId,
-    g: result.g
+    g: result.g,
+    debug
   };
 }
 

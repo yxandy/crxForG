@@ -99,8 +99,15 @@ async function openTargetUrl() {
       throw new Error(claimResponse?.error || "第三步执行失败。");
     }
 
+    const claimedEmailStatusText = buildClaimedEmailStatusText(claimResponse.email);
+
     setStepStatus(
-      ["第一步：网址打开成功", "第二步，准备邮箱注册", "第三步：领取邮箱成功"],
+      [
+        "第一步：网址打开成功",
+        "第二步，准备邮箱注册",
+        "第三步：领取邮箱成功",
+        claimedEmailStatusText
+      ],
       "success"
     );
     await waitRandomDelay(delayRange.minMs, delayRange.maxMs);
@@ -123,6 +130,7 @@ async function openTargetUrl() {
         "第一步：网址打开成功",
         "第二步，准备邮箱注册",
         "第三步：领取邮箱成功",
+        claimedEmailStatusText,
         "第四步：邮箱填入成功"
       ],
       "success"
@@ -146,6 +154,7 @@ async function openTargetUrl() {
         "第一步：网址打开成功",
         "第二步，准备邮箱注册",
         "第三步：领取邮箱成功",
+        claimedEmailStatusText,
         "第四步：邮箱填入成功",
         "第五步：注册按钮已点击"
       ],
@@ -175,6 +184,7 @@ async function openTargetUrl() {
         "第一步：网址打开成功",
         "第二步，准备邮箱注册",
         "第三步：领取邮箱成功",
+        claimedEmailStatusText,
         "第四步：邮箱填入成功",
         "第五步：注册按钮已点击",
         "第六步：获取邮箱验证码成功"
@@ -201,6 +211,7 @@ async function openTargetUrl() {
         "第一步：网址打开成功",
         "第二步，准备邮箱注册",
         "第三步：领取邮箱成功",
+        claimedEmailStatusText,
         "第四步：邮箱填入成功",
         "第五步：注册按钮已点击",
         "第六步：获取邮箱验证码成功",
@@ -229,6 +240,7 @@ async function openTargetUrl() {
         "第一步：网址打开成功",
         "第二步，准备邮箱注册",
         "第三步：领取邮箱成功",
+        claimedEmailStatusText,
         "第四步：邮箱填入成功",
         "第五步：注册按钮已点击",
         "第六步：获取邮箱验证码成功",
@@ -256,6 +268,7 @@ async function openTargetUrl() {
         "第一步：网址打开成功",
         "第二步，准备邮箱注册",
         "第三步：领取邮箱成功",
+        claimedEmailStatusText,
         "第四步：邮箱填入成功",
         "第五步：注册按钮已点击",
         "第六步：获取邮箱验证码成功",
@@ -394,6 +407,10 @@ function setStepStatus(lines, type = "") {
   statusLines = lines;
   statusOutput.textContent = statusLines.join("\n");
   statusOutput.className = `status ${type}`.trim();
+}
+
+function buildClaimedEmailStatusText(email) {
+  return `领取邮箱：${String(email || "未返回").trim() || "未返回"}`;
 }
 
 function getDelayRange() {
